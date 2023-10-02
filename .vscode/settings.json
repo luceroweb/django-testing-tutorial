@@ -1,0 +1,11 @@
+{
+    "python.analysis.extraPaths": ["${workspaceFolder}/src"],
+    "pylint.args": [
+      "--load-plugins=pylint_django",
+      "--django-settings-module=core.settings.local",
+      "--max-line-length=150"
+    ],
+    "flake8.args": [
+      "--enable-extensions=annotations"
+    ]
+}
