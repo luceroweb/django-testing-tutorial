@@ -1,21 +1,34 @@
 from django.shortcuts import render, get_object_or_404, redirect
-from django.http import HttpResponseRedirect, HttpResponse
+from django.http import HttpResponse
 from .models import Project, Category, Expense
 from django.views.generic import CreateView
-from django.utils.text import slugify
 from .forms import ExpenseForm
 import json
 
+
 def project_list(request):
     project_list = Project.objects.all()
-    return render(request, 'budget/project-list.html', {'project_list': project_list})
+    return render(
+        request,
+        'budget/project-list.html',
+        {'project_list': project_list}
+    )
+
 
 def project_detail(request, project_slug):
     project = get_object_or_404(Project, slug=project_slug)
 
     if request.method == 'GET':
         category_list = Category.objects.filter(project=project)
-        return render(request, 'budget/project-detail.html', {'project': project, 'expense_list': project.expenses.all(), 'category_list': category_list})
+        return render(
+            request,
+            'budget/project-detail.html',
+            {
+                'project': project,
+                'expense_list': project.expenses.all(),
+                'category_list': category_list
+            }
+        )
 
     elif request.method == 'POST':
         form = ExpenseForm(request.POST)
@@ -25,7 +38,10 @@ def project_detail(request, project_slug):
             amount = form.cleaned_data['amount']
             category_name = form.cleaned_data['category']
 
-            category = get_object_or_404(Category, project=project, name=category_name)
+            category = get_object_or_404(
+                Category, project=project,
+                name=category_name
+            )
 
             Expense.objects.create(
                 project=project,
@@ -35,9 +51,12 @@ def project_detail(request, project_slug):
             )
 
     elif request.method == 'DELETE':
-        id = json.loads(request.body)['id']
-        expense = Expense.objects.get(id=id)
-        expense.delete()
+        try:
+            id = json.loads(request.body)['id']
+            expense = Expense.objects.get(id=id)
+            expense.delete()
+        except json.decoder.JSONDecodeError:
+            return HttpResponse(status=404)
 
         return HttpResponse(status=204)
 
