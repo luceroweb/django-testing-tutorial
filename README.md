@@ -477,11 +477,173 @@ class TestForms(SimpleTestCase):
         self.assertEqual(len(form.errors), 3)
 ```
 
-## Set up functional tests:
-- Run `python3 manage.py test functional_tests`
-
+## Create Functional Tests 
+### Install Selenium's WebDriver
 Functional tests, test how the user will expeirence views in the browser, we will need to use a browser emulator from Silenium called WebDriver. Check out the [Getting Started guide](https://www.selenium.dev/documentation/webdriver/getting_started/), then follow the steps to [Install the Selenium library](https://www.selenium.dev/documentation/webdriver/getting_started/install_library/) or see below.
 1. Run `pip3 install selenium`
 2. add selenium to `requirements.txt` by adding this line: `selenium==4.13.0`
 3. Then run `python manage.py makemigrations`
 4. Finally run `python manage.py migrate` to include the Selenium package
+
+### Begin creating Functional Tests
+- Create a new folder called `/budgetproject/functional_tests`
+    - Create a new file in it called `__init__.py`
+    - Create a new file called `test_project_list_page.py`
+        - NOTE: You will use `StaticLiveServerTestCase` in order to test the static pages in this project
+    - Create a `def test_foo(self)` function to finish initial set up 
+    - Run `python3 manage.py test functional_tests` to confirm that your set up is working
+``` python
+from django.contrib.staticfiles.testing import StaticLiveServerTestCase
+
+
+class TestProjectListPage(StaticLiveServerTestCase):
+
+    def test_foo(self):
+        self.assertEqual(1, 1)
+```
+### Create `setUp()` and `tearDown()` functions
+- Add `from selenium import webdriver`
+- Delete the test function `test_foo()`
+- Add a `setUp()` function that adds `webdriver.Chrome()` to `self.browser`
+- Add a `tearDown()` function to close the browser between each test
+``` python
+from selenium import webdriver
+from django.contrib.staticfiles.testing import StaticLiveServerTestCase
+
+
+class TestProjectListPage(StaticLiveServerTestCase):
+
+    def setUp(self):
+        self.browser = webdriver.Chrome()
+
+    def tearDown(self):
+        self.browser.close()
+```
+### Make sure the project opens in the browser so you can inspect it
+- Add a `test_no_projects_alert_is_displayed()` function to show that the site opens in the browser and that no projects are present
+    - NOTE: you'll finish this function in the next step
+    - Add `import time` at the top of the document
+    - Then add the browser to self, `self.browser.get(self.live_server_url)`
+    - Add `time.sleep(20)` to keep the browser open for 20 seconds while you use the inspector
+    - In the browser window that opens, use the inspector to identify the container that reads 'Sorry, you don't have any projects, yet'
+- Run `python3 manage.py test functional_tests` to open the site in the broswer for 20 seconds
+``` python
+...
+import time
+
+
+class TestProjectListPage(StaticLiveServerTestCase):
+    ...
+
+    def test_no_projects_alert_is_displayed(self):
+        self.browser.get(self.live_server_url)
+        time.sleep(20)
+```
+
+### Finish the 'no projects' test
+- In the browser you saw that the container has a class called `.noproject-wrapper`
+- Remove the timer
+    - Remove `import time`
+    - Remove `time.sleep(20)`
+- Update the function to look for the container
+    - Add `from selenium.webdriver.common.by import By`
+        - [See Selenium Locator Strategies documentation](https://www.selenium.dev/documentation/webdriver/elements/locators/
+    )
+    - Find the class `.noproject-wrapper` using the browser's `.find_element` function Selenium's `By` tool
+        - `self.browser.find_element(By.CLASS_NAME, 'noproject-wrapper')`
+    - Assert that the 'no projects' messages is present
+- Run `python3 manage.py test functional_tests` to confirm that your test passes
+``` python
+...
+from selenium.webdriver.common.by import By
+
+
+class TestProjectListPage(StaticLiveServerTestCase):
+    ...
+
+    def test_no_projects_alert_is_displayed(self):
+        self.browser.get(self.live_server_url)
+
+        alert = self.browser.find_element(By.CLASS_NAME, 'noproject-wrapper')
+
+        self.assertEquals(
+            alert.find_element(By.TAG_NAME, 'h3').text,
+            "Sorry, you don't have any projects, yet."
+        )
+```
+
+### Confirm that the `Add Projects` alert button redirects correctly
+- Use the `By` tool again to click the one and only link on the 'no projects' page `self.browser.find_element(By.TAG_NAME, 'a').click()`
+- Import `from django.urls import reverse` so we can confirm that we're going to the "Add Project" page.
+- Assert that the current page is the same as the expected page
+- Run `python3 manage.py test functional_tests` to confirm that your test passes
+``` python
+...
+from django.urls import reverse
+
+
+class TestProjectListPage(StaticLiveServerTestCase):
+    ...
+    def test_no_projects_alert_button_redirects_to_add_page(self):
+        self.browser.get(self.live_server_url)
+
+        add_url = self.live_server_url + reverse('add')
+        self.browser.find_element(By.TAG_NAME, 'a').click()
+        self.assertEqual(
+            self.browser.current_url,
+            add_url
+        )
+```
+
+### Test that the user sees a new project in the project list
+- Create a new project called `project` with a budget of any value
+- Use the `browswer` tool to open the browser
+- Assert that the `h5` tag on the page reads `project1`
+- Run `python3 manage.py test functional_tests` to confirm that your test passes
+``` python
+...
+class TestProjectListPage(StaticLiveServerTestCase):
+    ...
+    def test_user_sees_project_list(self):
+        Project.objects.create(
+            name='project1',
+            budget=10000
+        )
+        self.browser.get(self.live_server_url)
+
+        self.assertEqual(
+            self.browser.find_element(By.TAG_NAME, 'h5').text,
+            'project1'
+        )
+```
+
+### Confirm user is redirected to the Project Detail page
+- Again create a new project called `project1`
+- Again use the `browswer` tool to open the browser
+- Get the expected detail URL that is returned by passing `detail` and the project slug to the `reverse` function and store it
+- Click the `VISIT` link to go to the Project Detail page
+- Assert that the current URL matches the detail url that you expected
+- Run `python3 manage.py test functional_tests` to confirm that your test passes
+``` python
+...
+class TestProjectListPage(StaticLiveServerTestCase):
+    ...
+    def test_user_is_redirected_to_prject_detail(self):
+        project1 = Project.objects.create(
+            name='project1',
+            budget=10000
+        )
+        self.browser.get(self.live_server_url)
+
+        detail_url = self.live_server_url + reverse(
+            'detail', args=[project1.slug]
+        )
+        self.browser.find_element(By.LINK_TEXT, 'VISIT').click()
+        self.assertEqual(
+            self.browser.current_url,
+            detail_url
+        )
+```
+
+# Congrats! You did it!
+Be sure that all of your tests pass. You have just built your first test suite!
